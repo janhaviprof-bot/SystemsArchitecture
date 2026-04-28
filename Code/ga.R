@@ -411,7 +411,7 @@ repair_d7 <- function(d5, d7) {
   
   return(d7)
 }
-revise_bit = function(x){
+repair_bits = function(x){
   xhat = bit2int(x)
   # Get decisions
   d1 = xhat[1]
@@ -489,18 +489,19 @@ revise_bit = function(x){
 
 f1 = function(x, nobj = 4, ...){
   #Modify architecture which is not valid
-  x= revise_bit(x)
+  x= repair_bits(x)
   # First, let's convert from binary to our integer-formatted architecture
   xhat = bit2int(x)
   # Seconds, let's get metrics 
   metrics = evaluate(xhat)
-  # Third, let's return metrics
+  # Third, return as 1 x nobj matrix for rmoo/GA internals.
+  metrics = matrix(as.numeric(metrics), nrow = 1, ncol = nobj)
   return(metrics)
 }
 
 f2 = function(x, nobj = 4, ...){
   #Modify architecture which is not valid
-  x= revise_bit(x)
+  x= repair_bits(x)
   # First, let's convert from binary to our integer-formatted architecture
   xhat = bit2int(x)
   # Second, let's check if constraints are violated.
@@ -509,32 +510,65 @@ f2 = function(x, nobj = 4, ...){
   # then this architecture's metrics should not be considered.
   if(violated == TRUE){
     # Return blank metrics
-    metrics = c(NA,NA,NA); 
-    metrics = matrix(data = metrics, ncol = length(metrics))
+    metrics = rep(NA_real_, nobj)
+    metrics = matrix(data = metrics, nrow = 1, ncol = nobj)
   }else{
     # If constraints are NOT violated, compute the metrics.
     metrics = evaluate(xhat)
+    metrics = matrix(as.numeric(metrics), nrow = 1, ncol = nobj)
   }
   # Fourth, let's return metrics
   return(metrics)
 }
 custom_mutate = function(object, parent){
-  # # Generate a mutation if using rmoo's ngsa algorithms
-  # mutation = nsgabin_raMutation(object = object, parent = parent)
-  # # Check if the mutation needs revision.
-  # mutation = revise_bit(mutation)
-  # # Return mutation
-  # return(mutation)
+  nbits <- 26
+  
+  # rmoo passes mutation(object, i), where `parent` is usually row index i.
+  # Fetch chromosome explicitly from population, then mutate.
+  parent_idx <- as.integer(as.vector(parent))[1]
+  
+  pop <- NULL
+  if (is.list(object) && !is.null(object$population)) {
+    pop <- object$population
+  } else if (isS4(object) && "population" %in% slotNames(object)) {
+    pop <- slot(object, "population")
+  }
+  
+  if (is.null(pop) || !is.matrix(pop) || is.na(parent_idx) ||
+      parent_idx < 1 || parent_idx > nrow(pop)) {
+    stop("custom_mutate could not resolve parent chromosome from index.")
+  }
+  
+  mutation <- as.numeric(pop[parent_idx, ])
+  if (length(mutation) != nbits) {
+    stop(paste0("custom_mutate expected ", nbits, " bits, got ", length(mutation)))
+  }
+  
+  # Flip one random bit.
+  idx <- sample.int(nbits, 1)
+  mutation[idx] <- 1 - mutation[idx]
+  
+  # Repair and hard-enforce output shape expected by rmoo/GA.
+  mutation <- as.numeric(repair_bits(mutation))
+  # Keep mutation contract strict for GA internals: exactly nbits.
+  if (length(mutation) < nbits) {
+    mutation <- c(mutation, rep(0, nbits - length(mutation)))
+  } else if (length(mutation) > nbits) {
+    mutation <- mutation[1:nbits]
+  }
+  mutation <- as.numeric(mutation)
+  
+  return(mutation)
   
   # #2nd type
   # mutation = as.numeric(nsgabin_raMutation(object = object, parent = parent))
-  # mutation = revise_bit(mutation)
+  # mutation = repair_bits(mutation)
   # mutation = as.numeric(mutation)
   # return(mutation)
   
   ##3rd type
   # mutation = as.vector(nsgabin_raMutation(object = object, parent = parent))
-  # mutation = revise_bit(mutation)
+  # mutation = repair_bits(mutation)
   # mutation = matrix(mutation, nrow = 1)
   
   # #4th type
@@ -548,23 +582,23 @@ custom_mutate = function(object, parent){
   #   mutation = mutation[1:26]
   # }
   # 
-  # mutation = revise_bit(mutation)
+  # mutation = repair_bits(mutation)
   # 
   # return(mutation)
   
   
-  # Flip 1 random bit
-  mutation = as.numeric(as.vector(parent))
-  if (length(mutation) != 26) {
-    stop(paste0("custom_mutate expected 26 bits from parent, got ", length(mutation)))
-  }
-  idx = sample(1:26, 1)
-  mutation[idx] = 1 - mutation[idx]
+  # # Flip 1 random bit
+  # mutation = as.numeric(as.vector(parent))
+  # if (length(mutation) != 26) {
+  #   stop(paste0("custom_mutate expected 26 bits from parent, got ", length(mutation)))
+  # }
+  # idx = sample(1:26, 1)
+  # mutation[idx] = 1 - mutation[idx]
   
-  # Repair
-  mutation = revise_bit(mutation)
+  # # Repair
+  # mutation = repair_bits(mutation)
   
-  return(mutation)
+  # return(mutation)
 }
 
 #Run GA
@@ -587,5 +621,9 @@ o = rmoo(
   nObj = 4, nBits = total_bits, popSize = 50, maxiter = 100,
   # Extras
   reference_dirs = ref, mutation = custom_mutate)
+
+  warnings()
+  xhat
+  x
 
 
