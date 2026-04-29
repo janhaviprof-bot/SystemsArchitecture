@@ -190,4 +190,5 @@ o
 summary(o)
 o@solution
 bit2int(o@solution)
+warnings()
 

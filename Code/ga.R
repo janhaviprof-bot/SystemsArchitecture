@@ -85,12 +85,8 @@ a = expand_grid(d1 = c(0,1,2), d2 = c(0,1,2), d3 = c(0, 1, 2),
 #
 
 # a <- read_csv("output_ex1_Q4.csv", skip = 1)
-a
-dim(a)
 
 a_sample <- a[sample(nrow(a), 10), ]
-a_sample
-dim(a_sample)
 # Calculate total length of your bitstring
 meta = tibble(
   # List your decisions
@@ -109,18 +105,13 @@ meta = tibble(
   n_bits = n_alts %>% log2() %>% ceiling()
 )
 # View it!
-meta
 total_bits = meta %>% summarize(total = sum(n_bits)) %>% with(total)
-total_bits
 xhat=c(2,2,2,0,1,1,1,0,1,2,1,0,1,2,0,1,2,1)
 
 #xhat=c(2,2,2,1,1,1,1,0,1,2,1,0,1,2,2,2,2,1)
 int2bit = function(xhat){
-  # Convert the first integer [0,1] to binary [0,1]
   x1 = decimal2binary(x = xhat[1], length = 2)
-  # Convert the second integer [0,1] to binary [0,1]
   x2 = decimal2binary(x = xhat[2], length = 2)
-  # Convert the third integer [0,1,2,3] to binary [00,01,10,11]
   x3 = decimal2binary(x = xhat[3], length = 2)
   x4_1 = decimal2binary(x = xhat[4], length = 1)
   x4_2 = decimal2binary(x = xhat[5], length = 1)
@@ -264,9 +255,18 @@ durability <- function(xhat, SystemDurability){
     SystemDurability[3, xhat[3]+1]
   )
   
-  # D4
+  # D4 engine durability in series (worst selected engine dominates)
   d4 <- xhat[4:9]
-  d4_time <- max(d4 * SystemDurability[4,2])
+  d4_durability_map <- c(
+    rep(SystemDurability[4,1], 4),  # d4_1..d4_4
+    rep(SystemDurability[4,2], 2)   # d4_5..d4_6
+  )
+  selected_idx <- which(d4 == 1)
+  if (length(selected_idx) == 0) {
+    d4_time <- 0
+  } else {
+    d4_time <- min(d4_durability_map[selected_idx])
+  }
   
   series_vals <- c(series_vals, d4_time)
   series_min <- min(series_vals)
@@ -295,10 +295,10 @@ evaluate=function(xhat){
   m3 = reliability(xhat, PropulsionReliability)
   m4 = durability(xhat, SystemDurability)
   # Bundle metrics
-  # metrics = c(m1,m2,m3,m4)
-  # m = matrix(data = metrics, ncol = length(metrics))
-  # return(m)
-  return(c(m1, m2, m3, m4))
+  metrics = c(-m1,-m2,m3,m4)
+  m = matrix(data = metrics, ncol = length(metrics))
+  return(m)
+  
 }
 #function to resample between d4 based on d1 and d3
 repair_d4 <- function(d1, d3, d4_1, d4_2, d4_3, d4_4, d4_5, d4_6) {
@@ -411,6 +411,7 @@ repair_d7 <- function(d5, d7) {
   
   return(d7)
 }
+
 repair_bits = function(x){
   xhat = bit2int(x)
   # Get decisions
@@ -455,7 +456,13 @@ repair_bits = function(x){
   d4_6 <- d4[6]}
   #Constraint : Number of motors assigned should be equal to number of positions
   if ((d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6) != c(1,2,4)[d3 + 1]) {
-    d4 <- repair_d4(d1, d3, c(d4_1,d4_2,d4_3,d4_4,d4_5,d4_6))
+    d4 <- repair_d4(d1, d3, d4_1, d4_2, d4_3, d4_4, d4_5, d4_6)
+    d4_1 <- d4[1]
+    d4_2 <- d4[2]
+    d4_3 <- d4[3]
+    d4_4 <- d4[4]
+    d4_5 <- d4[5]
+    d4_6 <- d4[6]
   }
   #Constraint : when FCC redundancy is double or triple then only k=3 partition allowed
   if((d5 %in% c(1,2)) &
@@ -476,50 +483,94 @@ repair_bits = function(x){
   output = int2bit(xhat)
   return(output)
 }
-# D1: propulsion type ∈ {0,1,2}
-# D2: battery chemistry ∈ {0,1,2}
-# D3: motor count class ∈ {0,1,2} → (1,2,4 motors)
-# D4: 6 binary positions (0/1)
-# D5: FCC redundancy ∈ {0,1,2}
-# D6: avionics integration ∈ {0,1}
-# D7: partition of 6 items into k groups (k = 2 or 3)
-# D8: CAPS installation ∈ {0,1}
 
-
-
-f1 = function(x, nobj = 4, ...){
-  #Modify architecture which is not valid
-  x= repair_bits(x)
-  # First, let's convert from binary to our integer-formatted architecture
+constrain= function(x){
   xhat = bit2int(x)
-  # Seconds, let's get metrics 
-  metrics = evaluate(xhat)
-  # Third, return as 1 x nobj matrix for rmoo/GA internals.
-  metrics = matrix(as.numeric(metrics), nrow = 1, ncol = nobj)
-  return(metrics)
+  # Get decisions
+  d1 = xhat[1]
+  d2 = xhat[2]
+  d3 = xhat[3]
+  d4_1 = xhat[4]
+  d4_2 = xhat[5]
+  d4_3 = xhat[6]
+  d4_4 = xhat[7]
+  d4_5 = xhat[8]
+  d4_6 = xhat[9]
+  d5 = xhat[10]
+  d6 = xhat[11]
+  d7_1 = xhat[12]
+  d7_2 = xhat[13]
+  d7_3 = xhat[14]
+  d7_4 = xhat[15]
+  d7_5 = xhat[16]
+  d7_6 = xhat[17]
+  d8 = xhat[18]
+  constraint1 = d1==3
+  constraint2 = d2==3
+  constraint3 = d3==3
+  constraint4 = d4_5==1
+  constraint5 = d5==3
+  constraint6 = d7_1==1
+  constraint7 = d7_3==3
+  constraint8 = d7_4==3
+  constraint9 = d7_5==3
+  constraint10 = d7_6==3
+  
+  
+  #structural constraint
+  #constraint : d4_5 will always have value 0 so no additional constraint required
+  #Constraint : if its electric hybrid then it cannot be at tail
+  constraint11 = (d1==2 & d4_6==1)
+  #Constraint : Number of motors assigned should be equal to number of positions
+  constraint12 = ((d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6) != c(1,2,4)[d3 + 1])
+  #Constraint : when FCC redundancy is double or triple then only k=3 partition allowed
+  constraint13 = ((d5 %in% c(1,2)) &
+    (
+      d7_1 != 0 |
+        !(0 %in% c(d7_1,d7_2,d7_3,d7_4,d7_5,d7_6)) |
+        !(1 %in% c(d7_1,d7_2,d7_3,d7_4,d7_5,d7_6)) |
+        !(2 %in% c(d7_1,d7_2,d7_3,d7_4,d7_5,d7_6))
+    ))
+  flag = any(
+    c(
+      constraint1, constraint2, constraint3, constraint4, constraint5,
+      constraint6, constraint7, constraint8, constraint9, constraint10,
+      constraint11, constraint12, constraint13
+    ),
+    na.rm = TRUE
+  )
+  return(flag)
 }
 
+# f1 = function(x, nobj = 4, ...){
+#   #Modify architecture which is not valid
+#   x= repair_bits(x)
+#   # First, let's convert from binary to our integer-formatted architecture
+#   xhat = bit2int(x)
+#   # Seconds, let's find metrics 
+#   metrics = evaluate(xhat)
+
+#   return(metrics)
+# }
 f2 = function(x, nobj = 4, ...){
-  #Modify architecture which is not valid
-  x= repair_bits(x)
   # First, let's convert from binary to our integer-formatted architecture
   xhat = bit2int(x)
   # Second, let's check if constraints are violated.
-  violated = constrain(xhat)
+  violated = isTRUE(constrain(x))
   # Third, if constraints are violated, 
   # then this architecture's metrics should not be considered.
-  if(violated == TRUE){
-    # Return blank metrics
-    metrics = rep(NA_real_, nobj)
-    metrics = matrix(data = metrics, nrow = 1, ncol = nobj)
+  if(violated){
+    # Return strong finite penalty to keep GA internals stable.
+    metrics = matrix(data = c(-1e9, -1e9, -1e9, -1e9), nrow = 1)
   }else{
     # If constraints are NOT violated, compute the metrics.
     metrics = evaluate(xhat)
-    metrics = matrix(as.numeric(metrics), nrow = 1, ncol = nobj)
   }
   # Fourth, let's return metrics
   return(metrics)
 }
+
+
 custom_mutate = function(object, parent){
   nbits <- 26
   
@@ -559,46 +610,6 @@ custom_mutate = function(object, parent){
   mutation <- as.numeric(mutation)
   
   return(mutation)
-  
-  # #2nd type
-  # mutation = as.numeric(nsgabin_raMutation(object = object, parent = parent))
-  # mutation = repair_bits(mutation)
-  # mutation = as.numeric(mutation)
-  # return(mutation)
-  
-  ##3rd type
-  # mutation = as.vector(nsgabin_raMutation(object = object, parent = parent))
-  # mutation = repair_bits(mutation)
-  # mutation = matrix(mutation, nrow = 1)
-  
-  # #4th type
-  # mutation = nsgabin_raMutation(object = object, parent = parent)
-  # 
-  # # 🔴 FORCE correct shape
-  # mutation = as.vector(mutation)
-  # 
-  # # 🔴 SAFETY: ensure correct length
-  # if(length(mutation) != 26){
-  #   mutation = mutation[1:26]
-  # }
-  # 
-  # mutation = repair_bits(mutation)
-  # 
-  # return(mutation)
-  
-  
-  # # Flip 1 random bit
-  # mutation = as.numeric(as.vector(parent))
-  # if (length(mutation) != 26) {
-  #   stop(paste0("custom_mutate expected 26 bits from parent, got ", length(mutation)))
-  # }
-  # idx = sample(1:26, 1)
-  # mutation[idx] = 1 - mutation[idx]
-  
-  # # Repair
-  # mutation = repair_bits(mutation)
-  
-  # return(mutation)
 }
 
 #Run GA
@@ -612,18 +623,69 @@ head(ref)
 
 # Full binary search
 o = rmoo(
-  fitness = f1, type = "binary", algorithm = "NSGA-III",
+  fitness = f2, type = "binary", algorithm = "NSGA-III",
   # Upper and Lower bounds on the bitstrings
   lower = rep(0, 26),
   upper = rep(1, 26),
   # Settings
   monitor = TRUE, summary = TRUE,
-  nObj = 4, nBits = total_bits, popSize = 50, maxiter = 100,
+  nObj = 4, nBits = total_bits, popSize = 200, maxiter = 200,
   # Extras
   reference_dirs = ref, mutation = custom_mutate)
 
-  warnings()
-  xhat
-  x
+#population
+cat("\n===== Population =====\n")
+o@population
+#Solution
+cat("\n===== Solution =====\n")
+o@solution
+cat("\n===== Decoded Solution (bit2int) =====\n")
+bit2int(o@solution)
+#Summary
+cat("\n===== Summary =====\n")
+summary(o)
+
+# Save final outputs to separate files
+write.csv(as.data.frame(o@population), file = "final_population.csv", row.names = FALSE)
+write.csv(as.data.frame(o@solution), file = "final_solution.csv", row.names = FALSE)
+cat("\nSaved files: final_population.csv, final_solution.csv\n")
+
+build_arch_metrics_table <- function(bit_matrix) {
+  bit_matrix <- as.matrix(bit_matrix)
+  n <- nrow(bit_matrix)
+  
+  arch_matrix <- matrix(NA_real_, nrow = n, ncol = 18)
+  metric_matrix <- matrix(NA_real_, nrow = n, ncol = 4)
+  
+  for (i in seq_len(n)) {
+    bits_i <- as.numeric(bit_matrix[i, ])
+    xhat_i <- bit2int(bits_i)
+    metrics_i <- as.numeric(evaluate(xhat_i))
+    arch_matrix[i, ] <- xhat_i
+    metric_matrix[i, ] <- metrics_i
+  }
+  
+  arch_df <- as.data.frame(arch_matrix)
+  names(arch_df) <- paste0("d", 1:18)
+  
+  metric_df <- as.data.frame(metric_matrix)
+  names(metric_df) <- c("cost", "certification", "reliability", "durability")
+  # evaluate() uses negative signs for optimization direction; flip back for reporting.
+  metric_df$cost <- -metric_df$cost
+  metric_df$certification <- -metric_df$certification
+  metric_df$reliability <- metric_df$reliability * 100
+  
+  cbind(arch_df, metric_df)
+}
+
+# Build architecture + metrics tables for population and solution
+population_table <- build_arch_metrics_table(o@population)
+solution_table <- build_arch_metrics_table(o@solution)
+
+write.csv(population_table, file = "final_population_arch_metrics.csv", row.names = FALSE)
+write.csv(solution_table, file = "final_solution_arch_metrics.csv", row.names = FALSE)
+
+cat("\nSaved files: final_population_arch_metrics.csv, final_solution_arch_metrics.csv\n")
+
 
 
