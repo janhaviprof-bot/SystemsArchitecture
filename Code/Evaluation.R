@@ -8,7 +8,7 @@ library(dplyr)   # For data manipulation
 # Read the architecture enumeration from CSV
 # ============================================================
 setwd(getwd())   # Ensure working directory is current directory
-arch_enum <- read_csv("output_ex1_Q4.csv")   # Read CSV file containing architectures
+arch_enum <- read_csv("output_enumeration.csv")   # Read CSV file containing architectures
 sample_arch <- arch_enum                     # Use full enumeration by default
 num_arch <- nrow(sample_arch)
 num_arch = nrow(arch_enum)

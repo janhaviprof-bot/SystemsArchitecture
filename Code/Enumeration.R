@@ -1,6 +1,7 @@
 getwd()
 
 # Load required packages
+
 library(dplyr)      # For filter, mutate, select
 library(tidyr)      # For expand_grid
 library(readr)      # For write_csv
@@ -33,7 +34,12 @@ d3 = enumerate_sf(n = c(3), .did = 3)
 d4 = enumerate_ds(n = 6, k = 6, .did = 4) %>%
   # Add count column — total positions selected
   # Used to enforce D3 motor count constraint
-  mutate(count = d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6)
+  #Positions : Wing-root-Left, Wing-root-Right, Wing-tip-Left, Wing-tip-Right, Nose, Tail
+  mutate(count = d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6)%>%
+  filter(!(d4_1 == 1 & d4_2 == 0)) %>%
+  filter(!(d4_3 == 1 & d4_4 == 0))%>%
+  filter(!(d4_2 == 1 & d4_1 == 0)) %>%
+  filter(!(d4_4 == 1 & d4_3 == 0))
 
 # ------------------------------------------------------------
 # D5 - FCC Redundancy Level (Standard Form)
@@ -180,7 +186,7 @@ cat("Total number of valid architectures:", nrow(arch), "\n")
 head(arch)
 
 # Save to CSV file
-write_csv(arch, "output_ex1_Q4.csv")
+write_csv(arch, "output_enumeration.csv")
 
 # Cleanup
 rm(list = ls())

@@ -447,7 +447,7 @@ repair_bits = function(x){
   #structural constraint
   #constraint : d4_5 will always have value 0 so no additional constraint required
   #Constraint : if its electric hybrid then it cannot be at tail
-  if(d1==2 & d4_6==1){d4 <- repair_d4(d1, d3, d4_1, d4_2, d4_3, d4_4, d4_5, d4_6)
+  if (!is.na(d1) && !is.na(d4_6) && d1 == 2 && d4_6 == 1) {d4 <- repair_d4(d1, d3, d4_1, d4_2, d4_3, d4_4, d4_5, d4_6)
   d4_1 <- d4[1]
   d4_2 <- d4[2]
   d4_3 <- d4[3]
@@ -455,7 +455,7 @@ repair_bits = function(x){
   d4_5 <- d4[5]
   d4_6 <- d4[6]}
   #Constraint : Number of motors assigned should be equal to number of positions
-  if ((d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6) != c(1,2,4)[d3 + 1]) {
+  if (!is.na(d3) && (d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6) != c(1, 2, 4)[d3 + 1]) {
     d4 <- repair_d4(d1, d3, d4_1, d4_2, d4_3, d4_4, d4_5, d4_6)
     d4_1 <- d4[1]
     d4_2 <- d4[2]
@@ -521,8 +521,23 @@ constrain= function(x){
   #constraint : d4_5 will always have value 0 so no additional constraint required
   #Constraint : if its electric hybrid then it cannot be at tail
   constraint11 = (d1==2 & d4_6==1)
-  #Constraint : Number of motors assigned should be equal to number of positions
-  constraint12 = ((d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6) != c(1,2,4)[d3 + 1])
+  #Constraint : D3 drives motor count + allowed D4 pattern (NA-safe: never if() on NA)
+  sum_d4 <- d4_1 + d4_2 + d4_3 + d4_4 + d4_5 + d4_6
+  d4_nose_only <- (d4_5 == 1 & d4_1 == 0 & d4_2 == 0 & d4_3 == 0 & d4_4 == 0 & d4_6 == 0)
+  d4_pair_root <- (d4_1 == 1 & d4_2 == 1 & d4_3 == 0 & d4_4 == 0 & d4_5 == 0 & d4_6 == 0)
+  d4_pair_tip <- (d4_1 == 0 & d4_2 == 0 & d4_3 == 1 & d4_4 == 1 & d4_5 == 0 & d4_6 == 0)
+  d4_wing_four <- (d4_1 == 1 & d4_2 == 1 & d4_3 == 1 & d4_4 == 1 & d4_5 == 0 & d4_6 == 0)
+  constraint12 <- TRUE
+  ok_d3 <- (length(d3) == 1L && !is.na(d3) && d3 %in% c(0, 1, 2))
+  if (ok_d3) {
+    if (d3 == 0) {
+      constraint12 <- sum_d4 != 1 || !d4_nose_only
+    } else if (d3 == 1) {
+      constraint12 <- sum_d4 != 2 || !(d4_pair_root || d4_pair_tip)
+    } else {
+      constraint12 <- sum_d4 != 4 || !d4_wing_four
+    }
+  }
   #Constraint : when FCC redundancy is double or triple then only k=3 partition allowed
   constraint13 = ((d5 %in% c(1,2)) &
     (
@@ -531,14 +546,12 @@ constrain= function(x){
         !(1 %in% c(d7_1,d7_2,d7_3,d7_4,d7_5,d7_6)) |
         !(2 %in% c(d7_1,d7_2,d7_3,d7_4,d7_5,d7_6))
     ))
-  flag = any(
-    c(
-      constraint1, constraint2, constraint3, constraint4, constraint5,
-      constraint6, constraint7, constraint8, constraint9, constraint10,
-      constraint11, constraint12, constraint13
-    ),
-    na.rm = TRUE
+  viol <- c(
+    constraint1, constraint2, constraint3, constraint4, constraint5,
+    constraint6, constraint7, constraint8, constraint9, constraint10,
+    constraint11, constraint12, constraint13
   )
+  flag <- any(is.na(viol)) || any(viol, na.rm = TRUE)
   return(flag)
 }
 
@@ -633,17 +646,17 @@ o = rmoo(
   # Extras
   reference_dirs = ref, mutation = custom_mutate)
 
-#population
+#population (explicit print: bare expressions often print nothing under source())
 cat("\n===== Population =====\n")
-o@population
+print(o@population)
 #Solution
 cat("\n===== Solution =====\n")
-o@solution
+print(o@solution)
 cat("\n===== Decoded Solution (bit2int) =====\n")
-bit2int(o@solution)
+print(bit2int(o@solution))
 #Summary
 cat("\n===== Summary =====\n")
-summary(o)
+print(summary(o))
 
 # Save final outputs to separate files
 write.csv(as.data.frame(o@population), file = "final_population.csv", row.names = FALSE)
