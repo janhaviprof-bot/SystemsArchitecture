@@ -646,12 +646,18 @@ o = rmoo(
   # Extras
   reference_dirs = ref, mutation = custom_mutate)
 
-#population (explicit print: bare expressions often print nothing under source())
+# population / solution: avoid printing full bit matrices (floods the console;
+# rows are saved to CSV below).
 cat("\n===== Population =====\n")
-print(o@population)
-#Solution
+cat(
+  "dimensions:", nrow(o@population), "x", ncol(o@population),
+  "(see final_population.csv)\n"
+)
 cat("\n===== Solution =====\n")
-print(o@solution)
+cat(
+  "dimensions:", nrow(o@solution), "x", ncol(o@solution),
+  "(see final_solution.csv)\n"
+)
 cat("\n===== Decoded Solution (bit2int) =====\n")
 print(bit2int(o@solution))
 #Summary
